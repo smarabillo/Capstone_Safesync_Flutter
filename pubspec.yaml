@@ -1,0 +1,62 @@
+name: safesync
+description: A new Flutter project.
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ">=2.19.1 <3.0.0"
+
+dependencies:
+  flutter_svg: ^2.0.5
+  flutter:
+    sdk: flutter
+  google_maps_flutter: ^2.3.2
+  shared_preferences: ^2.0.13
+  google_nav_bar: ^5.0.6
+  any_animated_button: ^0.0.4
+  multi_select_flutter: ^4.0.0
+  http: ^0.13.5                # Update http to be compatible with flutter_map
+  location: ^7.0.0
+  latlong2: ^0.8.1
+  cupertino_icons: ^1.0.2
+  geolocator: ^13.0.1
+  geocoding: ^3.0.0
+  flutter_map: ^4.0.0
+  image_picker: ^1.1.2
+  google_fonts: ^4.0.4
+  mime: ^2.0.0
+  permission_handler: ^10.0.0
+  intl: ^0.18.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0 # Updated lints
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/logo - splashscreen.png
+    - assets/images/logo - loginpage.png
+    - assets/images/logo - application.png
+    - assets/images/logo - splash.svg
+    - assets/images/background - loginpage.png
+    - assets/images/background - design1.png
+    - assets/images/background - design2.png
+    - assets/images/background - design3.png
+    - assets/images/background - design4.png
+    - assets/images/logo - btao.png
+    - assets/images/logo-safesyncwname.png
+    - assets/images/logo-safesyncwnamelndscp.png
+    - assets/images/logo-safesyncwhite.png
+    - assets/images/logo-safesyncblue.png
+    - assets/images/appicon.png
+
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: fonts/Poppins-Light.ttf
+        - asset: fonts/Poppins-Medium.ttf
+        - asset: fonts/Poppins-Bold.ttf
