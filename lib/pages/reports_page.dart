@@ -249,14 +249,15 @@ class _ReportsPageState extends State<ReportsPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Error'),
+          backgroundColor: Colors.white,
+          title: const Text('Error', selectionColor: Colors.redAccent,),
           content: Text(message),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text('OK'),
+              child: const Text('OK', selectionColor: Colors.black,),
             ),
           ],
         );
@@ -269,18 +270,15 @@ class _ReportsPageState extends State<ReportsPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: Colors.greenAccent,
-          title: const Text('Success'),
+          backgroundColor: Colors.white,
+          title: const Text('Success', selectionColor: Colors.greenAccent,),
           content: Text(message),
           actions: [
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
               },
-              child: const Text(
-                'OK',
-                selectionColor: Colors.white,
-              ),
+              child: const Text('OK', selectionColor: Colors.black,),
             ),
           ],
         );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:safesync/pages/incidents_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:safesync/pages/account_page.dart';
 import 'package:safesync/pages/reports_page.dart';
@@ -20,7 +21,8 @@ class _SafeSyncDashboardState extends State<SafeSyncDashboard> {
 
   final _pages = [
     const SafeSyncBody(),
-    ReportsPage(),
+    const ReportsPage(),
+    const IncidentsPage(userId: '',),
   ];
 
   final _navItems = const [

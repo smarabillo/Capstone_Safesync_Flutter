@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // Add this import
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -27,7 +28,7 @@ class LoginScreenState extends State<LoginScreen> {
 
     try {
       final response = await http.post(
-        Uri.parse(Config.loginUrl), // Use loginUrl from Config
+        Uri.parse(Config.loginUrl),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({"user_id": userId, "password": password}),
       );
@@ -42,7 +43,6 @@ class LoginScreenState extends State<LoginScreen> {
         await prefs.setString('number', data['number'].toString());
         await prefs.setString('profile_image', data['profile-image'] ?? "");
 
-        // Navigate to the dashboard if login is successful
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const SafeSyncDashboard()),
@@ -65,20 +65,19 @@ class LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Set the status bar text color to dark for visibility
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent, // Optional: Set background color
+      statusBarIconBrightness: Brightness.dark, // Dark text color
+    ));
+
+    const double inputWidth = 400.0;
+
     return Scaffold(
       backgroundColor: Colors.white,
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
-          // Background Image
-          Container(
-            decoration: BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/images/background - loginpage.png'),
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
           SingleChildScrollView(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 100, 20, 60.0),
@@ -97,71 +96,142 @@ class LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 40),
 
                   // Username Field
-                  TextFormField(
-                    controller: _usernameController,
-                    decoration: InputDecoration(
-                      hintText: 'Officer ID',
-                      filled: true,
-                      fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(
-                          vertical: 15, horizontal: 20),
-                      border: OutlineInputBorder(
-                        borderSide: BorderSide(
-                            color: Colors.white12), // Updated color to white12
-                        borderRadius: BorderRadius.circular(12.0),
+                  SizedBox(
+                    width: inputWidth,
+                    child: TextFormField(
+                      controller: _usernameController,
+                      style: const TextStyle(
+                        fontSize: 18.0,
+                        fontFamily: 'Poppins',
+                        color: Colors.black,
                       ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                            color: Colors.blueAccent), // Focused border color
-                        borderRadius: BorderRadius.circular(12.0),
+                      decoration: InputDecoration(
+                        hintText: 'Officer ID',
+                        hintStyle: const TextStyle(
+                          fontSize: 18.0,
+                          fontFamily: 'Poppins',
+                          color: Colors.black54,
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(
+                            vertical: 15, horizontal: 20),
+                        border: OutlineInputBorder(
+                          borderSide: const BorderSide(color: Colors.black26),
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: const BorderSide(color: Colors.black26),
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide:
+                              const BorderSide(color: Colors.blueAccent),
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        errorBorder: OutlineInputBorder(
+                          borderSide: const BorderSide(color: Colors.redAccent),
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
                       ),
                     ),
                   ),
 
-// Gap between the TextFields
-                  SizedBox(height: 16.0), // Adjust the gap as needed
+                  const SizedBox(height: 16.0),
 
-// Password Field
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: true,
-                    decoration: InputDecoration(
-                      hintText: 'Password',
-                      filled: true,
-                      fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(
-                          vertical: 15, horizontal: 20),
-                      border: OutlineInputBorder(
-                        borderSide: BorderSide(
-                            color: Colors.white12), // Updated color to white12
-                        borderRadius: BorderRadius.circular(12.0),
+                  // Password Field
+                  SizedBox(
+                    width: inputWidth,
+                    child: TextFormField(
+                      controller: _passwordController,
+                      obscureText: true,
+                      style: const TextStyle(
+                        fontSize: 18.0,
+                        fontFamily: 'Poppins',
+                        color: Colors.black,
                       ),
-                      focusedBorder: OutlineInputBorder(
-                        borderSide: BorderSide(
-                            color: Colors.blueAccent), // Focused border color
-                        borderRadius: BorderRadius.circular(12.0),
+                      decoration: InputDecoration(
+                        hintText: 'Password',
+                        hintStyle: const TextStyle(
+                          fontSize: 18.0,
+                          fontFamily: 'Poppins',
+                          color: Colors.black54,
+                        ),
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(
+                            vertical: 15, horizontal: 20),
+                        border: OutlineInputBorder(
+                          borderSide: const BorderSide(color: Colors.grey),
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: const BorderSide(color: Colors.black26),
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide:
+                              const BorderSide(color: Colors.blueAccent),
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
+                        errorBorder: OutlineInputBorder(
+                          borderSide: const BorderSide(color: Colors.redAccent),
+                          borderRadius: BorderRadius.circular(12.0),
+                        ),
                       ),
                     ),
                   ),
 
                   // Login Button
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 40.0,),
-                    child: TextButton(
-                      onPressed: _isLoading ? null : _login,
-                      style: TextButton.styleFrom(
-                        backgroundColor: Colors.blueAccent,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                            vertical: 14.0, horizontal: 50.0),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8.0),
+                  SizedBox(
+                    width: inputWidth,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 40.0),
+                      child: TextButton(
+                        onPressed: _isLoading ? null : _login,
+                        style: ButtonStyle(
+                          backgroundColor:
+                              MaterialStateProperty.resolveWith<Color>(
+                            (Set<MaterialState> states) {
+                              if (states.contains(MaterialState.pressed)) {
+                                return Colors
+                                    .blue.shade900; // Darker color when pressed
+                              }
+                              return Colors.blueAccent; // Default color
+                            },
+                          ),
+                          foregroundColor:
+                              MaterialStateProperty.all(Colors.white),
+                          padding: MaterialStateProperty.all(
+                            const EdgeInsets.symmetric(vertical: 14.0),
+                          ),
+                          shape: MaterialStateProperty.all(
+                            RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8.0),
+                            ),
+                          ),
+                        ),
+                        child: const Text(
+                          'Sign in now',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.normal,
+                            fontFamily: 'Poppins',
+                          ),
                         ),
                       ),
-                      child: const Text(
-                        'Sign In',
-                        style: TextStyle(
-                            fontSize: 17, fontWeight: FontWeight.normal),
+                    ),
+                  ),
+
+                  const Padding(
+                    padding: EdgeInsets.symmetric(
+                        vertical: 30.0), // Named argument for padding
+                    child: Text(
+                      '© 2024 Safesync, All rights reserved.',
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.black45,
+                        fontFamily: 'Poppins', // Poppins font for the text
                       ),
                     ),
                   ),

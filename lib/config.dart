@@ -12,4 +12,7 @@ class Config {
 
   // fetch incident types
   static const String fetchIncidentUrl = '$baseUrl/reporting/fetch_incident_types.php';
+
+  // fetch incident types
+  static const String fetchReportstUrl = '$baseUrl/reporting/fetch_reports.php';
 }
