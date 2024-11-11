@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:safesync/pages/account_page.dart';
 import 'package:safesync/pages/reports_page.dart';
-import 'package:safesync/pages/incidents_page.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -19,10 +18,9 @@ class _SafeSyncDashboardState extends State<SafeSyncDashboard> {
   int _selectedIndex = 0;
   final PageController _pageController = PageController();
 
-  final _pages = const [
-    SafeSyncBody(),
+  final _pages = [
+    const SafeSyncBody(),
     ReportsPage(),
-    IncidentsPage(),
   ];
 
   final _navItems = const [

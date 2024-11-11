@@ -1,21 +1,20 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:safesync/pages/home.dart'; // Import home.dart for buildAppBar
+import 'package:safesync/config.dart';
+import 'package:safesync/pages/home.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:intl/intl.dart';
 
-
 class ReportsPage extends StatefulWidget {
-  const ReportsPage({Key? key}) : super(key: key);
+  const ReportsPage({super.key});
 
   @override
   _ReportsPageState createState() => _ReportsPageState();
@@ -23,22 +22,25 @@ class ReportsPage extends StatefulWidget {
 
 class _ReportsPageState extends State<ReportsPage> {
   final _formKey = GlobalKey<FormState>();
+
+  // State variables
   String? _userId, _selectedIncidentCode, _incidentName, _location;
+  String? base64Image;
   DateTime? _incidentDateTime;
   bool _isLoadingIncidentTypes = true;
   File? _image;
   List<IncidentType> _incidentTypes = [];
   final ImagePicker _picker = ImagePicker();
-  late MapController _mapController;
+  MapController? _mapController;
   LatLng? _currentPosition;
+  final TextEditingController _descriptionController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(statusBarColor: Colors.white),
-    );
-    _mapController = MapController();
+        const SystemUiOverlayStyle(statusBarColor: Colors.white));
+    _incidentDateTime = DateTime.now();
     _loadUserId();
     _initializeLocation();
     _initializeIncidentTypes();
@@ -46,38 +48,42 @@ class _ReportsPageState extends State<ReportsPage> {
 
   Future<void> _loadUserId() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() => _userId = prefs.getString('user_id'));
+    setState(() {
+      _userId = prefs.getString('user_id');
+      _location = prefs.getString('location') ?? "Location not available";
+    });
   }
 
   Future<void> _initializeLocation() async {
+    final prefs = await SharedPreferences.getInstance();
     final status = await Permission.location.request();
+
     if (status.isGranted) {
       final position = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high);
-
-      // Check if the widget is still mounted before calling setState
       if (mounted) {
-        setState(() {
-          _currentPosition = LatLng(position.latitude, position.longitude);
-          _location =
-              "Lat: ${position.latitude}, Lon: ${position.longitude}"; // Store the lat/lon as a string
-        });
-        _mapController.move(_currentPosition!, 16.0);
+        _updateLocation(position.latitude, position.longitude);
+        prefs.setString('location', _location!);
+        _mapController?.move(_currentPosition!, 16.0);
       }
     } else {
-      // Check if the widget is still mounted before calling setState
       if (mounted) {
         setState(() => _location = "Location permission denied");
       }
     }
   }
 
+  void _updateLocation(double latitude, double longitude) {
+    setState(() {
+      _currentPosition = LatLng(latitude, longitude);
+      _location = "$latitude, $longitude";
+    });
+  }
+
   void _centerOnLocation() {
-    if (_currentPosition != null) {
-      _mapController.move(
-          _currentPosition!, 16.0); // Adjust zoom level as necessary
+    if (_currentPosition != null && _mapController != null) {
+      _mapController!.move(_currentPosition!, 16.0);
     } else {
-      // You can handle location permission denied or loading state here
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Unable to fetch current location')),
       );
@@ -86,17 +92,17 @@ class _ReportsPageState extends State<ReportsPage> {
 
   Future<void> _initializeIncidentTypes() async {
     try {
-      final response = await http.get(
-          Uri.parse('https://safesync.helioho.st/classes/class-incident.php'));
+      // API fetching incidents
+      final response = await http.get(Uri.parse(Config.fetchIncidentUrl));
+
       if (response.statusCode == 200) {
         List<dynamic> data = json.decode(response.body);
 
-        // Check if the widget is still mounted before calling setState
         if (mounted) {
           setState(() {
             _incidentTypes = data
-                .map((item) =>
-                    IncidentType(item['incident_code'], item['incident_name']))
+                .map((item) => IncidentType(
+                    item['incident_code'].toString(), item['incident_name']))
                 .toList();
             _selectedIncidentCode = _incidentTypes.first.code;
             _incidentName = _incidentTypes.first.name;
@@ -108,7 +114,6 @@ class _ReportsPageState extends State<ReportsPage> {
     } catch (e) {
       print("Error fetching incident types: $e");
     } finally {
-      // Check if the widget is still mounted before calling setState
       if (mounted) {
         setState(() => _isLoadingIncidentTypes = false);
       }
@@ -120,236 +125,371 @@ class _ReportsPageState extends State<ReportsPage> {
     if (pickedFile != null) setState(() => _image = File(pickedFile.path));
   }
 
-  Future<void> _submitReport() async {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> submitReport() async {
+    if (_formKey.currentState!.validate()) {
+      try {
+        // Format datetime properly - ensure it's not null
+        String formattedDateTime = _incidentDateTime != null
+            ? DateFormat('yyyy-MM-dd HH:mm:ss').format(_incidentDateTime!)
+            : DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
 
-    final request = http.MultipartRequest(
-        'POST', Uri.parse('http://10.0.2.2/safesync-api/submit_report.php'))
-      ..fields['user_id'] = _userId!
-      ..fields['incident_code'] = _selectedIncidentCode!
-      ..fields['incident_name'] = _incidentName!
-      ..fields['location'] = _location!
-      ..fields['incident_desc'] = 'Incident description here'
-      ..fields['incident_datetime'] =
-          _incidentDateTime?.toIso8601String() ?? '';
+        // Validate all required fields before creating request
+        if (_userId?.isEmpty ?? true) {
+          _showErrorDialog("User ID is required");
+          return;
+        }
 
-    if (_image != null) {
-      request.files
-          .add(await http.MultipartFile.fromPath('image', _image!.path));
-    }
+        if (_selectedIncidentCode?.isEmpty ?? true) {
+          _showErrorDialog("Incident Code is required");
+          return;
+        }
 
-    try {
-      final response = await request.send();
-      if (response.statusCode == 200) {
-        final responseData = await http.Response.fromStream(response);
-        final data = json.decode(responseData.body);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(data['message'])));
-      } else {
-        throw Exception('Failed to submit report');
+        if (_location?.isEmpty ?? true) {
+          _showErrorDialog("Location is required");
+          return;
+        }
+
+        if (_descriptionController.text.trim().isEmpty) {
+          _showErrorDialog("Description is required");
+          return;
+        }
+
+        // Prepare the report data
+        Map<String, String> reportData = {
+          'reported_by': _userId!,
+          'incident_code': _selectedIncidentCode!,
+          'location': _location!,
+          'incident_desc': _descriptionController.text.trim(),
+          'date_time_reported': formattedDateTime,
+          'incident_status': 'Reported',
+        };
+
+        // Prepare the request
+        var request = http.MultipartRequest(
+          'POST',
+          Uri.parse(Config.createReportUrl),
+        );
+
+        // Add fields
+        reportData.forEach((key, value) {
+          request.fields[key] = value;
+        });
+
+        // Add the image file if it exists
+        if (_image != null) {
+          print("Adding image to request: ${_image!.path}");
+          request.files.add(await http.MultipartFile.fromPath(
+            'incident_img', // Field name must match PHP (incident_img)
+            _image!.path,
+          ));
+        } else {
+          print("No image selected.");
+        }
+
+        // Send the request
+        var response = await request.send();
+
+        // Handle the response
+        if (response.statusCode == 200) {
+          final responseBody = await response.stream.bytesToString();
+          print('Response: $responseBody');
+
+          // Handle successful response
+          final data = json.decode(responseBody);
+          if (data['status'] == 'success') {
+            _showSuccessDialog(
+                data['message'] ?? 'Report submitted successfully');
+            _clearForm();
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                  builder: (context) => const SafeSyncDashboard()),
+            );
+          } else {
+            _showErrorDialog(data['message'] ?? 'Failed to submit report');
+          }
+        } else {
+          _showErrorDialog('Server error: ${response.statusCode}');
+        }
+      } catch (e) {
+        print("Error during API call: $e");
+        _showErrorDialog("Network error. Please check your connection.");
       }
-    } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error: $e')));
+    } else {
+      _showErrorDialog("Please fill all the required fields correctly.");
     }
+  }
+
+  void _clearForm() {
+    setState(() {
+      _descriptionController.clear();
+      _image = null;
+      _incidentDateTime = null;
+    });
+  }
+
+// Add this helper function to validate data
+  bool _validateData() {
+    print('Validating fields:');
+    print('User ID: $_userId');
+    print('Incident Code: $_selectedIncidentCode');
+    print('Location: $_location');
+    print('Description: ${_descriptionController.text}');
+    print('DateTime: $_incidentDateTime');
+
+    return _userId?.isNotEmpty == true &&
+        _selectedIncidentCode?.isNotEmpty == true &&
+        _location?.isNotEmpty == true &&
+        _descriptionController.text.trim().isNotEmpty &&
+        _incidentDateTime != null;
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Error'),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showSuccessDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.greenAccent,
+          title: const Text('Success'),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text(
+                'OK',
+                selectionColor: Colors.white,
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: buildAppBar(),
+      appBar: AppBar(
+        title: const Text("Report Incident"),
+        foregroundColor: Colors.blueAccent,
+        backgroundColor: Colors.white,
+      ),
       body: _isLoadingIncidentTypes
           ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Form(
-                key: _formKey,
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: _buildReadOnlyTextField('Reported By', _userId),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: _buildIncidentDropdown(),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: _buildReadOnlyTextField(
-                            'Incident Name', _incidentName),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: _buildMapContainer(),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: _buildReadOnlyTextField('Location', _location),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: _buildDescriptionField(),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: _buildDateTimeField(),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: _buildImagePickerContainer(),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: _buildSubmitButton(),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+          : _buildForm(),
+    );
+  }
+
+  Widget _buildForm() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0), // Reduced padding for consistency
+      child: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildReadOnlyTextField('Reported By', _userId),
+              _buildIncidentDropdown(),
+              _buildReadOnlyTextField('Incident Name', _incidentName),
+              _buildMapContainer(),
+              _buildReadOnlyTextField('Location', _location),
+              _buildDescriptionField(),
+              _buildDateTimeField(),
+              _buildImagePickerContainer(),
+              _buildSubmitButton(),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
   Widget _buildReadOnlyTextField(String label, String? initialValue) {
-    return TextFormField(
-      decoration: InputDecoration(
-        labelText: label,
-        enabledBorder: const OutlineInputBorder(
-          borderSide:
-              BorderSide(color: Colors.black26, width: 1.0), // Default border
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: TextFormField(
+        decoration: InputDecoration(
+          labelText: label,
+          enabledBorder: const OutlineInputBorder(
+              borderSide: BorderSide(color: Colors.black26)),
+          contentPadding: const EdgeInsets.all(12.0),
         ),
-        contentPadding: const EdgeInsets.all(12.0),
+        readOnly: true,
+        initialValue: initialValue,
       ),
-      readOnly: true,
-      initialValue: initialValue,
     );
   }
 
   Widget _buildIncidentDropdown() {
     return DropdownButtonFormField<String>(
       decoration: const InputDecoration(
-          labelText: 'Incident Code',
-          border: OutlineInputBorder(
-              borderSide: BorderSide(color: Colors.black26))),
+        labelText: 'Incident Code',
+        border: OutlineInputBorder(
+          borderSide: BorderSide(color: Colors.black26),
+        ),
+      ),
       value: _selectedIncidentCode,
       onChanged: (newValue) {
-        setState(() {
-          _selectedIncidentCode = newValue;
-          _incidentName =
-              _incidentTypes.firstWhere((type) => type.code == newValue).name;
-        });
+        if (newValue != null) {
+          setState(() {
+            _selectedIncidentCode = newValue;
+            // Find the incident type object based on the selected code
+            final selectedIncident = _incidentTypes.firstWhere(
+              (incident) => incident.code == newValue,
+              orElse: () => IncidentType(
+                  'manual', 'Manual Entry'), // Default if not found
+            );
+            _incidentName = selectedIncident.name;
+          });
+        }
       },
-      items: _incidentTypes
-          .map((incident) => DropdownMenuItem<String>(
-                value: incident.code,
-                child: Text('${incident.code} - ${incident.name}'),
-              ))
-          .toList(),
+      items: _incidentTypes.map((incident) {
+        return DropdownMenuItem<String>(
+          value: incident.code,
+          child: Text('${incident.code} - ${incident.name}'),
+        );
+      }).toList(),
     );
   }
 
   Widget _buildMapContainer() {
-    return Container(
-      height: 250,
-      child: FlutterMap(
-        mapController: _mapController, // Use the initialized controller
-        options: MapOptions(
-          center: _currentPosition ?? LatLng(0, 0),
-          zoom: 16.0,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Container(
+        height: 250,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8.0),
+          boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)],
         ),
-        children: [
-          TileLayer(
-            urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-            subdomains: ['a', 'b', 'c'],
-          ),
-          MarkerLayer(
-            markers: _currentPosition != null
-                ? [
-                    Marker(
-                      point: _currentPosition!,
-                      builder: (context) =>
-                          const Icon(Icons.location_on, color: Colors.red),
-                    ),
-                  ]
-                : [],
-          ),
-          Positioned(
-            bottom: 10,
-            right: 10,
-            child: FloatingActionButton(
-              mini: true,
-              onPressed: _centerOnLocation,
-              child: const Icon(
-                Icons.my_location_rounded,
-                color: Colors.white,
+        child: FlutterMap(
+          mapController: _mapController ??= MapController(),
+          options:
+              MapOptions(center: _currentPosition ?? LatLng(0, 0), zoom: 16.0),
+          children: [
+            TileLayer(
+                urlTemplate:
+                    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                subdomains: const ['a', 'b', 'c']),
+            if (_currentPosition != null)
+              MarkerLayer(markers: [
+                Marker(
+                    point: _currentPosition!,
+                    builder: (_) =>
+                        const Icon(Icons.location_on, color: Colors.red))
+              ]),
+            Positioned(
+              bottom: 10,
+              right: 10,
+              child: FloatingActionButton(
+                mini: true,
+                onPressed: _centerOnLocation,
+                backgroundColor: Theme.of(context).primaryColor,
+                child:
+                    const Icon(Icons.my_location_rounded, color: Colors.white),
               ),
-              backgroundColor: Colors.blue,
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildDescriptionField() {
-    return TextFormField(
-      decoration: const InputDecoration(
-        labelText: 'Incident Description',
-        enabledBorder: const OutlineInputBorder(
-          borderSide:
-              BorderSide(color: Colors.black26, width: 1.0), // Default border
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: TextFormField(
+        controller: _descriptionController,
+        maxLines: 3,
+        decoration: const InputDecoration(
+          labelText: 'Incident Description',
+          border: OutlineInputBorder(),
+          hintText: 'Enter incident description here',
         ),
+        validator: (value) {
+          if (value == null || value.trim().isEmpty) {
+            return 'Please provide a description';
+          }
+          return null;
+        },
+        onChanged: (value) {
+          // Optional: Add this to see the value changing
+          print('Description updated: $value');
+        },
       ),
-      maxLines: 3,
     );
   }
 
   Widget _buildDateTimeField() {
-  return TextFormField(
-    decoration: const InputDecoration(
-      labelText: 'Incident Date & Time',
-      enabledBorder: OutlineInputBorder(
-        borderSide: BorderSide(color: Colors.black26, width: 1.0),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: TextFormField(
+        readOnly: true,
+        decoration: InputDecoration(
+          labelText: 'Date & Time',
+          border: const OutlineInputBorder(),
+          suffixIcon: IconButton(
+            icon: const Icon(Icons.calendar_today),
+            onPressed: _selectDateTime,
+          ),
+        ),
+        controller: TextEditingController(
+          text: _incidentDateTime != null
+              ? DateFormat('yyyy-MM-dd HH:mm').format(_incidentDateTime!)
+              : '',
+        ),
       ),
-    ),
-    readOnly: true,
-    onTap: () async {
-      final pickedDate = await showDatePicker(
+    );
+  }
+
+  Future<void> _selectDateTime() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2101),
+    );
+    if (picked != null) {
+      final TimeOfDay? timePicked = await showTimePicker(
         context: context,
-        initialDate: DateTime.now(),
-        firstDate: DateTime(2000),
-        lastDate: DateTime(2101),
+        initialTime: TimeOfDay.fromDateTime(picked),
       );
-      if (pickedDate != null) {
-        final pickedTime = await showTimePicker(
-          context: context,
-          initialTime: TimeOfDay.now(),
-        );
-        if (pickedTime != null) {
-          final selectedDateTime = DateTime(
-            pickedDate.year,
-            pickedDate.month,
-            pickedDate.day,
-            pickedTime.hour,
-            pickedTime.minute,
+      if (timePicked != null) {
+        setState(() {
+          _incidentDateTime = DateTime(
+            picked.year,
+            picked.month,
+            picked.day,
+            timePicked.hour,
+            timePicked.minute,
           );
-          setState(() {
-            _incidentDateTime = selectedDateTime;
-          });
-        }
+        });
       }
-    },
-    controller: TextEditingController(
-      text: _incidentDateTime != null
-          ? DateFormat('yyyy-MM-dd HH:mm:ss').format(_incidentDateTime!)
-          : 'Select Date & Time',
-    ),
-  );
-}
+    }
+  }
 
   Widget _buildImagePickerContainer() {
     return GestureDetector(
@@ -387,7 +527,7 @@ class _ReportsPageState extends State<ReportsPage> {
           }
         },
         child: Container(
-          height: 130,
+          height: 100,
           width: double.infinity, // Make the container stretch to full width
           padding: const EdgeInsets.all(0.0),
           decoration: BoxDecoration(
@@ -418,20 +558,25 @@ class _ReportsPageState extends State<ReportsPage> {
   }
 
   Widget _buildSubmitButton() {
-    return TextButton(
-      onPressed: _submitReport,
-      style: TextButton.styleFrom(
-        backgroundColor: Colors.blue, // Background color
-        foregroundColor: Colors.white, // Text color
-        padding:
-            EdgeInsets.symmetric(vertical: 12.0, horizontal: 24.0), // Padding
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8.0), // Rounded corners
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16.0),
+      child: Center(
+        child: ElevatedButton(
+          onPressed:
+              submitReport, // Fix here: Change _submitReport to submitReport
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blueAccent, // Button color
+            padding:
+                const EdgeInsets.symmetric(vertical: 15.0, horizontal: 50.0),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          child: const Text(
+            'Submit Report',
+            style: TextStyle(color: Colors.white, fontSize: 16),
+          ),
         ),
-        side:
-            BorderSide(color: Colors.blue, width: 1), // Border color and width
       ),
-      child: const Text('Submit Report'),
     );
   }
 }
